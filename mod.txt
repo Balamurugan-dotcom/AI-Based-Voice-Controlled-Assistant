@@ -1,0 +1,488 @@
+# REPLACE the import block at the top with this:
+from screen import capture_screen, capture_and_hash
+from ocr import extract_text
+from target import find_target, get_center
+from actions import (
+    click, type_text, press_key, open_app, close_app, scroll, hotkey,
+    close_window, close_tab, minimize_window, maximize_window, restore_window,
+    snap_left, snap_right, switch_window, minimize_all, show_all_windows,
+    new_tab, reopen_tab, next_tab, prev_tab,
+    go_back, go_forward, refresh_page, hard_refresh, open_incognito, open_url,
+    zoom_in, zoom_out, zoom_reset,
+    copy, cut, paste, undo, redo, select_all, save_file, find_in_page,
+    screenshot, snip,
+    volume_up, volume_down, mute,
+    brightness_up, brightness_down,
+    lock, shutdown, restart, open_task_manager,
+    new_virtual_desktop, next_virtual_desktop, prev_virtual_desktop,
+    close_virtual_desktop,                         # Bug 1 fix
+)
+from actions import sleep as system_sleep          # Bug 2 fix — rename to avoid shadowing time.sleep
+from brain import get_plan_with_retry, chat_with_llm
+import time
+from voice import start_listening
+import re
+from speaker import speak, reply
+# -------------------------------
+# CONVERSATION MEMORY
+# -------------------------------
+
+conversation_memory = []
+
+# -------------------------------
+# EXTRACT YOUTUBE QUERY
+# -------------------------------
+
+def extract_youtube_query(goal):
+    goal = goal.lower()
+    remove_words = ["open", "type", "youtube", "search", "for", "and",
+                    "brave", "chrome", "edge", "browser"]
+    goal = re.sub(r"\b(" + "|".join(remove_words) + r")\b", "", goal)
+    goal = re.sub(r"[^a-z0-9\s]", " ", goal)
+    return re.sub(r"\s+", " ", goal).strip()
+
+# -------------------------------
+# SPLIT MULTI-COMMANDS
+# -------------------------------
+
+def split_commands(goal):
+    for sep in [" and then ", " then ", " and ", ","]:
+        if sep in goal:
+            return [g.strip() for g in goal.split(sep) if g.strip()]
+    return [goal]
+
+
+# -------------------------------
+# INTENT PARSER — all actions
+# -------------------------------
+
+def parse_intent(goal):
+    g = goal.lower().strip().strip(".,!?;:'\"")
+    # — App control —
+    if g.startswith("open "):
+        app = g.replace("open ", "").strip().strip(".,!?;:'\"")
+        return {"type": "open", "target": app}
+
+    if g.startswith("close "):
+        target = g.replace("close ", "").strip()
+        if target in ("window", "this", "it"):
+            return {"type": "close_window"}
+        if target == "tab":
+            return {"type": "close_tab"}
+        return {"type": "close_app", "target": target}
+
+    # — Window management —
+    if any(w in g for w in ["minimize", "minimise"]):
+        if "all" in g:
+            return {"type": "minimize_all"}
+        return {"type": "minimize"}
+
+    if any(w in g for w in ["maximize", "maximise", "full screen", "fullscreen"]):
+        return {"type": "maximize"}
+
+    if "restore" in g:
+        return {"type": "restore"}
+
+    if "snap left" in g:
+        return {"type": "snap_left"}
+
+    if "snap right" in g:
+        return {"type": "snap_right"}
+
+    if "show desktop" in g or "desktop" == g:
+        return {"type": "minimize_all"}
+
+    if "switch window" in g or "alt tab" in g:
+        return {"type": "switch_window"}
+
+    if "task view" in g:
+        return {"type": "task_view"}
+
+    # — Virtual desktops —
+    if "new desktop" in g:
+        return {"type": "new_desktop"}
+    if "next desktop" in g:
+        return {"type": "next_desktop"}
+    if "previous desktop" in g or "prev desktop" in g:
+        return {"type": "prev_desktop"}
+    if "close desktop" in g:
+        return {"type": "close_desktop"}
+
+    # — Tabs —
+    if "new tab" in g:
+        return {"type": "new_tab"}
+    if "reopen tab" in g or "restore tab" in g:
+        return {"type": "reopen_tab"}
+    if "next tab" in g:
+        return {"type": "next_tab"}
+    if "previous tab" in g or "prev tab" in g:
+        return {"type": "prev_tab"}
+    if "close tab" in g:
+        return {"type": "close_tab"}
+
+    # — Browser —
+    if "go back" in g or "back" == g:
+        return {"type": "go_back"}
+    if "go forward" in g or "forward" == g:
+        return {"type": "go_forward"}
+    if "hard refresh" in g:
+        return {"type": "hard_refresh"}
+    if "refresh" in g or "reload" in g:
+        return {"type": "refresh"}
+    if "zoom in" in g:
+        return {"type": "zoom_in"}
+    if "zoom out" in g:
+        return {"type": "zoom_out"}
+    if "zoom reset" in g or "reset zoom" in g:
+        return {"type": "zoom_reset"}
+    if "incognito" in g or "private" in g:
+        return {"type": "incognito"}
+    if g.startswith("go to ") or g.startswith("navigate to "):
+        url = g.replace("go to ", "").replace("navigate to ", "").strip()
+        return {"type": "open_url", "target": url}
+
+    # — File ops —
+    if "copy" == g:                     return {"type": "copy"}
+    if "cut" == g:                      return {"type": "cut"}
+    if "paste" == g:                    return {"type": "paste"}
+    if "undo" == g:                     return {"type": "undo"}
+    if "redo" == g:                     return {"type": "redo"}
+    if "select all" in g:               return {"type": "select_all"}
+    if "save" == g:                     return {"type": "save"}
+    if "find" == g or "search page" in g: return {"type": "find"}
+
+    # — Screenshot —
+    if "screenshot" in g:               return {"type": "screenshot"}
+    if "snip" in g or "snipping" in g:  return {"type": "snip"}
+
+    # — Volume —
+    if "volume up" in g:                return {"type": "volume_up"}
+    if "volume down" in g:              return {"type": "volume_down"}
+    if "mute" in g or "unmute" in g:    return {"type": "mute"}
+
+    # — Brightness —
+    if "brightness up" in g:            return {"type": "brightness_up"}
+    if "brightness down" in g:          return {"type": "brightness_down"}
+
+    # — System —
+    if "lock" in g:                     return {"type": "lock"}
+    if "sleep" in g:                    return {"type": "sleep"}
+    if "shutdown" in g or "shut down" in g: return {"type": "shutdown"}
+    if "restart" in g or "reboot" in g: return {"type": "restart"}
+    if "task manager" in g:             return {"type": "task_manager"}
+
+    # — Click / type / scroll / press —
+    if g.startswith("click "):
+        target = g.replace("click ", "").strip()
+        for word in ["on", "the", "button", "icon"]:
+            target = target.replace(word, "").strip()
+        return {"type": "click", "target": target}
+
+    if g.startswith("type "):
+        return {"type": "type", "text": g.replace("type ", "", 1)}
+
+    if "scroll" in g:
+        direction = "up" if "up" in g else "down"
+        return {"type": "scroll", "direction": direction}
+
+    if g.startswith("press "):
+        return {"type": "press_key", "key": g.replace("press ", "").strip()}
+
+    return {"type": "none"}
+
+# -------------------------------
+# SMART CLICK
+# -------------------------------
+
+def smart_click(target, ocr_data):
+    print(f"🎯 Smart click: {target}")
+    target = target.lower().strip()
+    print("👁️ OCR TEXT:", [i["text"] for i in ocr_data])
+
+    # Pass 1: direct match
+    for item in ocr_data:
+        if target in item["text"].lower():
+            x, y = get_center(item)
+            click(x, y)
+            print(f"Clicked (direct): {item['text']}")
+            return True
+
+    # Pass 2: fuzzy match
+    from difflib import SequenceMatcher
+    best, best_score = None, 0
+    for item in ocr_data:
+        score = SequenceMatcher(None, target, item["text"].lower()).ratio()
+        if score > best_score:
+            best_score = score
+            best = item
+
+    if best and best_score > 0.65:
+        x, y = get_center(best)
+        click(x, y)
+        print(f"Clicked (fuzzy): {best['text']} (score={best_score:.2f})")
+        return True
+
+    print(" Target not found")
+    return False
+
+# -------------------------------
+# YOUTUBE TASK
+# -------------------------------
+
+def run_youtube_task(query):
+    print("\n🎯 Running YouTube Task\n")
+    open_app("brave")
+    time.sleep(5)
+    hotkey("ctrl", "l")
+    time.sleep(0.3)
+    type_text("youtube.com")
+    press_key("enter")
+    time.sleep(5)
+    press_key("/")
+    time.sleep(0.3)
+    type_text(query)
+    press_key("enter")
+    print("\nYouTube Search Completed\n")
+
+# -------------------------------
+# EXECUTE PLAN
+# -------------------------------
+
+def execute_plan(plan):
+    print("\n🚀 Executing Plan\n")
+    prev_hash = None
+    ocr_data = []
+
+    for step in plan:
+        img, changed, new_hash = capture_and_hash(prev_hash)
+        if changed or not ocr_data:
+            print("🔄 Screen changed → OCR")
+            ocr_data = extract_text(img)
+        else:
+            print("⚡ Skipping OCR")
+        prev_hash = new_hash
+
+        action = step.get("action", "")
+        target = step.get("target", "")
+        text   = step.get("text", "")
+        key    = step.get("key", "")
+        query  = step.get("query", "")
+
+        print(f"\n➡️ Step: {step}")
+
+        try:
+            if action == "open_app":        open_app(target);       time.sleep(3)
+            elif action == "close_app":     close_app(target)
+            elif action == "close_window":  close_window()
+            elif action == "minimize":      minimize_window()
+            elif action == "maximize":      maximize_window()
+            elif action == "restore":       restore_window()
+            elif action == "snap_left":     snap_left()
+            elif action == "snap_right":    snap_right()
+            elif action == "switch_window": switch_window()
+            elif action == "minimize_all":  minimize_all()
+            elif action == "new_tab":       new_tab()
+            elif action == "close_tab":     close_tab()
+            elif action == "go_back":       go_back()
+            elif action == "go_forward":    go_forward()
+            elif action == "refresh":       refresh_page()
+            elif action == "screenshot":    screenshot()
+            elif action == "snip":          snip()
+            elif action == "volume_up":     volume_up()
+            elif action == "volume_down":   volume_down()
+            elif action == "mute":          mute()
+            elif action == "brightness_up": brightness_up()
+            elif action == "brightness_down": brightness_down()
+            elif action == "lock":          lock()
+            elif action == "sleep":     system_sleep()
+            elif action == "shutdown":      shutdown()
+            elif action == "restart":       restart()
+            elif action == "search":
+                hotkey("ctrl", "l"); time.sleep(0.3)
+                type_text(query); press_key("enter")
+            elif action == "click":
+                success = smart_click(target, ocr_data)
+                if not success:
+                    time.sleep(1)
+                    ocr_data = extract_text(capture_screen())
+                    smart_click(target, ocr_data)
+            elif action == "type":          type_text(text)
+            elif action == "press_key":     press_key(key)
+            elif action == "scroll":        scroll(target or "down")
+        except Exception as e:
+            print(" Step error:", e)
+
+        time.sleep(0.8)
+
+# -------------------------------
+# IS CONVERSATION?
+# -------------------------------
+
+def is_conversation(goal):
+    g = goal.lower().strip()
+    action_keywords = ["open", "close", "click", "type", "search", "scroll",
+                       "press", "launch", "go", "find", "start", "play",
+                       "minimize", "maximize", "restore", "snap", "switch",
+                       "mute", "volume", "brightness", "lock", "sleep",
+                       "shutdown", "restart", "screenshot", "snip", "refresh",
+                       "zoom", "copy", "paste", "save", "undo", "redo"]
+    question_words = ["what", "who", "why", "when", "where", "how", "calculate"]
+
+    if any(g.startswith(q) for q in question_words):    return True
+    if any(w in g for w in ["hello", "hi", "thank", "bye"]): return True
+    if any(k in g for k in action_keywords):            return False
+    return len(g.split()) <= 3
+
+# -------------------------------
+# MAIN AGENT
+# -------------------------------
+
+def run_agent(goal):
+    print(f"\n🚀 COMMAND: {goal}\n")
+
+    if len(goal.strip()) < 3:
+        print("⚠️ Ignored short input")
+        return
+
+    # YouTube shortcut
+    if "youtube" in goal.lower() and "search" in goal.lower():
+        query = extract_youtube_query(goal)
+        speak(f"Searching YouTube for {query}")
+        run_youtube_task(query)
+        return
+
+    # Conversation
+    if is_conversation(goal):
+        print("💬 Conversation mode")
+        response = chat_with_llm(goal, conversation_memory)
+        print("🧠 AI:", response)
+        speak(response)
+        conversation_memory.append({"role": "user", "content": goal})
+        conversation_memory.append({"role": "assistant", "content": response})
+        return
+
+    # Split multi-commands
+    commands = split_commands(goal)
+
+    for cmd in commands:
+        print(f"\n➡️ Processing: {cmd}")
+        intent = parse_intent(cmd)
+        t = intent["type"]
+
+        # — Fast path: no OCR needed —
+        if   t == "open":           speak(f"Opening {intent['target']}"); open_app(intent["target"]); time.sleep(2)
+        elif t == "close_window":   speak("Closing window");   close_window()
+        elif t == "close_tab":      speak("Closing tab");      close_tab()
+        elif t == "close_app":      speak(f"Closing {intent['target']}"); close_app(intent["target"])
+        elif t == "minimize":       speak("Minimizing");        minimize_window()
+        elif t == "maximize":       speak("Maximizing");        maximize_window()
+        elif t == "restore":        speak("Restoring window");  restore_window()
+        elif t == "snap_left":      speak("Snapping left");     snap_left()
+        elif t == "snap_right":     speak("Snapping right");    snap_right()
+        elif t == "minimize_all":   speak("Showing desktop");   minimize_all()
+        elif t == "switch_window":  switch_window()
+        elif t == "task_view":      show_all_windows()
+        elif t == "new_desktop":    new_virtual_desktop()
+        elif t == "next_desktop":   next_virtual_desktop()
+        elif t == "prev_desktop":   prev_virtual_desktop()
+        elif t == "new_tab":        new_tab()
+        elif t == "reopen_tab":     reopen_tab()
+        elif t == "next_tab":       next_tab()
+        elif t == "prev_tab":       prev_tab()
+        elif t == "go_back":        go_back()
+        elif t == "go_forward":     go_forward()
+        elif t == "refresh":        refresh_page()
+        elif t == "hard_refresh":   hard_refresh()
+        elif t == "zoom_in":        zoom_in()
+        elif t == "zoom_out":       zoom_out()
+        elif t == "zoom_reset":     zoom_reset()
+        elif t == "incognito":      open_incognito()
+        elif t == "open_url":       open_url(intent["target"])
+        elif t == "copy":           copy()
+        elif t == "cut":            cut()
+        elif t == "paste":          paste()
+        elif t == "undo":           undo()
+        elif t == "redo":           redo()
+        elif t == "select_all":     select_all()
+        elif t == "save":           save_file()
+        elif t == "find":           find_in_page()
+        elif t == "screenshot":     speak("Taking screenshot"); screenshot()
+        elif t == "snip":           speak("Opening snip tool"); snip()
+        elif t == "volume_up":      volume_up()
+        elif t == "volume_down":    volume_down()
+        elif t == "mute":           mute()
+        elif t == "brightness_up":  brightness_up()
+        elif t == "brightness_down":brightness_down()
+        elif t == "lock":           speak("Locking screen");    lock()
+        elif t == "sleep":          speak("Going to sleep");    system_sleep()
+        elif t == "shutdown":       shutdown()
+        elif t == "restart":        restart()
+        elif t == "task_manager":   open_task_manager()
+        elif t == "type":           type_text(intent["text"]); press_key("enter")
+        elif t == "scroll":         scroll(intent["direction"])
+        elif t == "press_key":      press_key(intent["key"])
+
+        # — Needs OCR —
+        elif t == "click":
+            img = capture_screen()
+            ocr_data = extract_text(img)
+            smart_click(intent["target"], ocr_data)
+
+        # — AI planning fallback —
+        elif t == "none":
+            print("🧠 Using AI planning...")
+            speak("Let me think")
+            img = capture_screen()
+            ocr_data = extract_text(img)
+            plan = get_plan_with_retry(cmd, ocr_data)
+            if not plan:
+                speak("I couldn't figure that out")
+                continue
+            execute_plan(plan)
+
+# -------------------------------
+# LIVE VOICE LOOP
+# -------------------------------
+# ─────────────────────────────────────────────────────────────
+# ADD THIS at the very bottom of your main.py
+# Replace the existing  if __name__ == "__main__":  block
+# ─────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import threading
+    from hamilton_ui import launch_ui, state, add_to_history
+
+    # ── Patch run_agent to update UI state ──────────────────
+    _original_run_agent = run_agent
+
+    def run_agent_with_ui(goal):
+        state.last_command = goal
+        state.status = "thinking"
+        add_to_history("user", goal)
+        try:
+            _original_run_agent(goal)
+            add_to_history("ai", f"Done: {goal}")
+        except Exception as e:
+            add_to_history("ai", f"Error: {e}")
+        state.status = "idle"
+
+    run_agent = run_agent_with_ui
+
+    # ── Voice loop in background thread ─────────────────────
+    def voice_loop():
+        print("\n🎤 LIVE VOICE AGENT STARTED\n")
+        for goal in start_listening():
+            if not goal:
+                continue
+            if "exit" in goal or "stop" in goal:
+                print("👋 Stopping agent...")
+                state.is_running = False
+                break
+            run_agent(goal)
+
+    voice_thread = threading.Thread(target=voice_loop, daemon=True)
+    voice_thread.start()
+
+    # ── Launch Hamilton UI (blocks main thread) ──────────────
+    print("🖥️  Launching Hamilton AI UI...")
+    launch_ui()

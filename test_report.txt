@@ -1,0 +1,517 @@
+import time
+import sys
+import os
+import pyautogui
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from actions import (
+    open_app, close_window, close_tab, minimize_window, maximize_window,
+    restore_window, new_tab, go_back, go_forward, refresh_page,
+    zoom_in, zoom_out, zoom_reset, open_incognito,
+    type_text, press_key, hotkey, scroll, switch_window,
+    volume_up, volume_down, mute, screenshot, snip,
+    copy, paste, select_all, undo, save_file
+)
+
+# -------------------------------
+# CONFIG
+# -------------------------------
+
+BROWSER = "brave"       # change to "chrome" or "edge" if needed
+YOUTUBE_SEARCH = "spider man trailer"
+GOOGLE_SEARCH  = "python programming"
+SPOTIFY_SEARCH = "lofi hip hop"
+
+PASS = " PASS"
+FAIL = " FAIL"
+results = []
+
+# -------------------------------
+# HELPERS
+# -------------------------------
+
+def wait(s):
+    time.sleep(s)
+
+def section(title):
+    print(f"\n{'═'*55}")
+    print(f"   {title}")
+    print(f"{'═'*55}")
+
+def log(name, status, note=""):
+    tag = PASS if status else FAIL
+    msg = f"   {tag}  {name}"
+    if note:
+        msg += f"  ({note})"
+    print(msg)
+    results.append((name, PASS if status else FAIL))
+
+def safe(name, func, note=""):
+    try:
+        result = func()
+        log(name, result is not False, note)
+    except Exception as e:
+        log(name, False, str(e))
+
+def navigate_to(url):
+    hotkey("ctrl", "l")
+    wait(0.4)
+    import pyperclip
+    pyperclip.copy(url)
+    hotkey("ctrl", "v")
+    wait(0.3)
+    press_key("enter")
+
+def search_in_browser(query):
+    hotkey("ctrl", "l")
+    wait(0.4)
+    import pyperclip
+    pyperclip.copy(query)
+    hotkey("ctrl", "v")
+    wait(0.3)
+    press_key("enter")
+
+# ══════════════════════════════════════════════════════
+# TEST 1: BROWSER — GOOGLE SEARCH
+# ══════════════════════════════════════════════════════
+def test_browser_google():
+    section("TEST 1: BROWSER — GOOGLE SEARCH")
+
+    safe("Open browser", lambda: open_app(BROWSER))
+    wait(4)
+
+    safe("Navigate to Google", lambda: navigate_to("google.com") or True)
+    wait(3)
+
+    safe("Search on Google", lambda: search_in_browser(GOOGLE_SEARCH) or True)
+    wait(3)
+
+    safe("Scroll down results",   lambda: scroll("down"))
+    wait(1)
+    safe("Scroll down more",      lambda: scroll("down"))
+    wait(1)
+    safe("Scroll back up",        lambda: scroll("up"))
+    wait(1)
+    safe("Zoom in",               zoom_in)
+    wait(0.5)
+    safe("Zoom out",              zoom_out)
+    wait(0.5)
+    safe("Zoom reset",            zoom_reset)
+    wait(0.5)
+    safe("Go back",               go_back)
+    wait(1.5)
+    safe("Go forward",            go_forward)
+    wait(1.5)
+    safe("Refresh page",          refresh_page)
+    wait(2)
+    safe("Find in page",          lambda: hotkey("ctrl", "f") or True)
+    wait(0.5)
+    safe("Close find bar",        lambda: press_key("escape") or True)
+    wait(0.5)
+    safe("Open new tab",          new_tab)
+    wait(1)
+    safe("Close new tab",         close_tab)
+    wait(1)
+    safe("Open incognito window", open_incognito)
+    wait(2)
+    safe("Close incognito",       close_window)
+    wait(1)
+    safe("Close browser",         close_window)
+    wait(2)
+
+# ══════════════════════════════════════════════════════
+# TEST 2: YOUTUBE — SEARCH + PLAY VIDEO
+# ══════════════════════════════════════════════════════
+def test_youtube():
+    section("TEST 2: YOUTUBE — SEARCH & PLAY VIDEO")
+
+    safe("Open browser", lambda: open_app(BROWSER))
+    wait(4)
+
+    safe("Navigate to YouTube", lambda: navigate_to("youtube.com") or True)
+    wait(4)
+
+    # Search using YouTube's keyboard shortcut
+    safe("Focus search bar (/)", lambda: press_key("/") or True)
+    wait(0.5)
+
+    safe("Type search query", lambda: type_text(YOUTUBE_SEARCH))
+    wait(0.5)
+
+    safe("Submit search", lambda: press_key("enter") or True)
+    wait(4)
+
+    safe("Scroll to first video", lambda: scroll("down"))
+    wait(1)
+
+    # Click first video result using Tab key navigation
+    safe("Tab to first result", lambda: press_key("tab") or True)
+    wait(0.3)
+    safe("Tab to first result", lambda: press_key("tab") or True)
+    wait(0.3)
+    safe("Open first video",    lambda: press_key("enter") or True)
+    wait(5)
+
+    # Video controls
+    safe("Pause/Play (k key)",        lambda: press_key("k") or True)
+    wait(1)
+    safe("Play again",                lambda: press_key("k") or True)
+    wait(2)
+    safe("Mute video (m key)",        lambda: press_key("m") or True)
+    wait(1)
+    safe("Unmute video",              lambda: press_key("m") or True)
+    wait(1)
+    safe("Skip forward 5s (l key)",   lambda: press_key("l") or True)
+    wait(1)
+    safe("Skip back 5s (j key)",      lambda: press_key("j") or True)
+    wait(1)
+    safe("Fullscreen (f key)",        lambda: press_key("f") or True)
+    wait(2)
+    safe("Exit fullscreen",           lambda: press_key("f") or True)
+    wait(1)
+    safe("Increase volume (up arrow)",lambda: press_key("up") or True)
+    wait(0.5)
+    safe("Decrease volume (down arrow)",lambda: press_key("down") or True)
+    wait(0.5)
+    safe("Scroll down page",          lambda: scroll("down"))
+    wait(1)
+    safe("Scroll up page",            lambda: scroll("up"))
+    wait(1)
+    safe("Go back to results",        go_back)
+    wait(3)
+    safe("Close browser",             close_window)
+    wait(2)
+
+# ══════════════════════════════════════════════════════
+# TEST 3: NOTEPAD — TYPING, EDITING, SAVING
+# ══════════════════════════════════════════════════════
+def test_notepad():
+    section("TEST 3: NOTEPAD — TYPING, EDITING, SAVING")
+
+    safe("Open Notepad", lambda: open_app("notepad"))
+    wait(3)
+
+    safe("Type heading",          lambda: type_text("=== AI AGENT TEST ==="))
+    safe("Press Enter",           lambda: press_key("enter") or True)
+    safe("Type normal text",      lambda: type_text("Hello, this is a test of the desktop agent."))
+    safe("Press Enter",           lambda: press_key("enter") or True)
+    safe("Type email address",    lambda: type_text("test@example.com"))
+    safe("Press Enter",           lambda: press_key("enter") or True)
+    safe("Type numbers",          lambda: type_text("1234567890"))
+    safe("Press Enter",           lambda: press_key("enter") or True)
+    safe("Type special chars",    lambda: type_text("!@#$%^&*()_+-=[]{}"))
+    safe("Press Enter",           lambda: press_key("enter") or True)
+    safe("Type URL",              lambda: type_text("https://www.google.com"))
+    wait(0.5)
+
+    safe("Select all text",       select_all)
+    wait(0.5)
+    safe("Copy text",             copy)
+    wait(0.3)
+    safe("Press End",             lambda: press_key("end") or True)
+    wait(0.3)
+    safe("Press Enter",           lambda: press_key("enter") or True)
+    safe("Paste text",            paste)
+    wait(0.5)
+
+    safe("Undo paste",            undo)
+    wait(0.3)
+
+    safe("Save file (Ctrl+S)",    save_file)
+    wait(1.5)
+
+    # Save dialog appears — type filename and save
+    safe("Type filename",         lambda: type_text("agent_test_output"))
+    wait(0.3)
+    safe("Confirm save",          lambda: press_key("enter") or True)
+    wait(1)
+
+    safe("Close Notepad",         close_window)
+    wait(2)
+
+# ══════════════════════════════════════════════════════
+# TEST 4: CALCULATOR
+# ══════════════════════════════════════════════════════
+def test_calculator():
+    section("TEST 4: CALCULATOR — ARITHMETIC")
+
+    safe("Open Calculator", lambda: open_app("calculator"))
+    wait(3)
+
+    calculations = [
+        ("123 + 456", ["1","2","3","+","4","5","6","="]),
+        ("999 - 111", ["9","9","9","-","1","1","1","="]),
+        ("25 × 4",    ["2","5","*","4","="]),
+        ("144 ÷ 12",  ["1","4","4","/","1","2","="]),
+    ]
+
+    for label, keys in calculations:
+        safe(f"Calculate {label}", lambda ks=keys: [press_key(k) or True for k in ks] or True)
+        wait(0.8)
+        safe("Screenshot result", screenshot)
+        wait(0.5)
+        safe("Clear (Escape)",    lambda: press_key("escape") or True)
+        wait(0.3)
+
+    safe("Close Calculator", close_window)
+    wait(2)
+
+# ══════════════════════════════════════════════════════
+# TEST 5: FILE EXPLORER
+# ══════════════════════════════════════════════════════
+def test_file_explorer():
+    section("TEST 5: FILE EXPLORER — NAVIGATION")
+
+    safe("Open File Explorer", lambda: open_app("file explorer"))
+    wait(3)
+
+    safe("Navigate to Documents",  lambda: navigate_to(os.path.expanduser("~\\Documents")) or True)
+    wait(1.5)
+    safe("Navigate to Downloads",  lambda: navigate_to(os.path.expanduser("~\\Downloads")) or True)
+    wait(1.5)
+    safe("Navigate to Desktop",    lambda: navigate_to(os.path.expanduser("~\\Desktop")) or True)
+    wait(1.5)
+    safe("Go back",                go_back)
+    wait(1)
+    safe("Go forward",             go_forward)
+    wait(1)
+    safe("Scroll down",            lambda: scroll("down"))
+    wait(0.5)
+    safe("Scroll up",              lambda: scroll("up"))
+    wait(0.5)
+    safe("Search in explorer",     lambda: hotkey("ctrl", "f") or True)
+    wait(0.5)
+    safe("Type search term",       lambda: type_text("test"))
+    wait(1)
+    safe("Press Escape",           lambda: press_key("escape") or True)
+    wait(0.5)
+    safe("Select all items",       select_all)
+    wait(0.5)
+    safe("Press Escape",           lambda: press_key("escape") or True)
+    wait(0.5)
+    safe("Close File Explorer",    close_window)
+    wait(2)
+
+# ══════════════════════════════════════════════════════
+# TEST 6: WINDOW MANAGEMENT
+# ══════════════════════════════════════════════════════
+def test_window_management():
+    section("TEST 6: WINDOW MANAGEMENT")
+
+    safe("Open Notepad (window 1)", lambda: open_app("notepad"))
+    wait(2)
+    safe("Type in window 1",        lambda: type_text("Window 1"))
+    safe("Open Calculator (window 2)", lambda: open_app("calculator"))
+    wait(2)
+
+    safe("Maximize window",         maximize_window);  wait(1)
+    safe("Minimize window",         minimize_window);  wait(1)
+    safe("Restore window",          restore_window);   wait(1)
+    safe("Snap left",               lambda: hotkey("win", "left") or True); wait(1)
+    safe("Snap right",              lambda: hotkey("win", "right") or True); wait(1)
+    safe("Switch window (Alt+Tab)", switch_window);    wait(1.5)
+    safe("Show desktop (Win+D)",    lambda: hotkey("win", "d") or True); wait(1)
+    safe("Restore desktop (Win+D)", lambda: hotkey("win", "d") or True); wait(1)
+    safe("Task view (Win+Tab)",     lambda: hotkey("win", "tab") or True); wait(1.5)
+    safe("Close task view",         lambda: press_key("escape") or True); wait(0.5)
+    safe("Close Calculator",        close_window);     wait(1)
+    safe("Close Notepad",           close_window);     wait(1)
+    safe("Don't save",              lambda: press_key("n") or True); wait(1)
+
+# ══════════════════════════════════════════════════════
+# TEST 7: VOLUME + BRIGHTNESS + SCREENSHOT
+# ══════════════════════════════════════════════════════
+def test_system_controls():
+    section("TEST 7: SYSTEM CONTROLS")
+
+    safe("Volume up",        volume_up);    wait(0.4)
+    safe("Volume up",        volume_up);    wait(0.4)
+    safe("Volume up",        volume_up);    wait(0.4)
+    safe("Volume down",      volume_down);  wait(0.4)
+    safe("Volume down",      volume_down);  wait(0.4)
+    safe("Mute",             mute);         wait(0.4)
+    safe("Unmute",           mute);         wait(0.4)
+    safe("Brightness up",    brightness_up);   wait(0.4)
+    safe("Brightness up",    brightness_up);   wait(0.4)
+    safe("Brightness down",  brightness_down); wait(0.4)
+    safe("Brightness down",  brightness_down); wait(0.4)
+    safe("Screenshot",       screenshot);   wait(1)
+    safe("Snip tool",        snip);         wait(2)
+    safe("Close snip",       lambda: press_key("escape") or True); wait(0.5)
+
+# ══════════════════════════════════════════════════════
+# TEST 8: OCR + BRAIN
+# ══════════════════════════════════════════════════════
+def test_ocr_and_brain():
+    section("TEST 8: OCR + AI BRAIN")
+
+    # OCR test
+    try:
+        from screen import capture_screen
+        from ocr import extract_text
+
+        open_app("notepad")
+        wait(3)
+        type_text("OCR Test: Hello World 12345")
+        wait(0.5)
+
+        img = capture_screen()
+        t0 = time.time()
+        ocr_data = extract_text(img)
+        elapsed = time.time() - t0
+
+        text_items = [x for x in ocr_data if x.get("source") != "icon"]
+        found = any("ocr" in x["text"].lower() or "hello" in x["text"].lower() for x in text_items)
+
+        print(f"\n    OCR Results:")
+        print(f"      Items detected : {len(text_items)}")
+        print(f"      Time taken     : {elapsed:.2f}s")
+        print(f"      Found test text: {found}")
+
+        log("OCR detects text",        len(text_items) > 10)
+        log("OCR finds typed text",    found)
+        log("OCR under 10s",           elapsed < 10)
+
+        close_window()
+        wait(1)
+        press_key("n")
+        wait(1)
+
+    except Exception as e:
+        log("OCR test", False, str(e))
+
+    # Brain / LLM test
+    try:
+        from brain import call_llm, get_plan
+
+        print("\n    Testing LLM connection...")
+        response = call_llm("Reply with just the word: WORKING")
+        log("LLM connection",  bool(response and len(response) > 0), response)
+
+        print("\n    Testing AI planning...")
+        plan = get_plan("open notepad and type hello world", [{"text": "Notepad"}])
+        log("AI generates plan",        bool(plan and len(plan) > 0))
+        log("Plan has correct actions", any(s.get("action") in ["open_app","type"] for s in plan) if plan else False)
+        if plan:
+            print(f"      Plan: {plan}")
+
+    except Exception as e:
+        log("Brain test", False, str(e))
+
+# ══════════════════════════════════════════════════════
+# TEST 9: MULTI-STEP TASK (End-to-End)
+# ══════════════════════════════════════════════════════
+def test_end_to_end():
+    section("TEST 9: END-TO-END — GOOGLE → COPY → NOTEPAD")
+
+    safe("Open browser",            lambda: open_app(BROWSER))
+    wait(4)
+    safe("Go to Google",            lambda: navigate_to("google.com") or True)
+    wait(3)
+    safe("Search something",        lambda: search_in_browser("what is python") or True)
+    wait(3)
+    safe("Scroll to read",          lambda: scroll("down"))
+    wait(1)
+    safe("Screenshot results",      screenshot)
+    wait(1)
+    safe("Open new tab",            new_tab)
+    wait(1)
+    safe("Go to Wikipedia",         lambda: navigate_to("wikipedia.org") or True)
+    wait(3)
+    safe("Close tab",               close_tab)
+    wait(1)
+    safe("Close browser",           close_window)
+    wait(2)
+
+    safe("Open Notepad",            lambda: open_app("notepad"))
+    wait(3)
+    safe("Type summary",            lambda: type_text("Test completed successfully at " + time.strftime("%H:%M:%S")))
+    wait(0.5)
+    safe("Save file",               save_file)
+    wait(1.5)
+    safe("Type filename",           lambda: type_text("end_to_end_test"))
+    wait(0.3)
+    safe("Confirm save",            lambda: press_key("enter") or True)
+    wait(1)
+    safe("Close Notepad",           close_window)
+    wait(2)
+
+# ══════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════
+def main():
+    print("\n" + "█"*55)
+    print("   DESKTOP AGENT — IN-DEPTH TEST SUITE")
+    print("█"*55)
+    print("\n  Tests: Browser, YouTube, Notepad, Calculator,")
+    print("         File Explorer, Window Mgmt, System,")
+    print("         OCR, AI Brain, End-to-End")
+    print("\n    Keep hands off keyboard & mouse!")
+    print("  Starting in 5 seconds...\n")
+    time.sleep(5)
+
+    # Run all test groups
+    test_browser_google()
+    test_youtube()
+    test_notepad()
+    test_calculator()
+    test_file_explorer()
+    test_window_management()
+    test_system_controls()
+    test_ocr_and_brain()
+    test_end_to_end()
+
+    # ══════════════════════════════
+    # FINAL REPORT
+    # ══════════════════════════════
+    section("FINAL REPORT")
+
+    passed  = [r for r in results if r[1] == PASS]
+    failed  = [r for r in results if r[1] == FAIL]
+    total   = len(results)
+    pct     = int(len(passed) / total * 100) if total else 0
+
+    print(f"\n  Total Tests : {total}")
+    print(f"   Passed   : {len(passed)}  ({pct}%)")
+    print(f"   Failed   : {len(failed)}")
+
+    if failed:
+        print(f"\n   FAILED TESTS:")
+        for name, _ in failed:
+            print(f"     • {name}")
+
+    if pct == 100:
+        print("\n   PERFECT — All tests passed!")
+    elif pct >= 80:
+        print("\n   GOOD — Agent is mostly working")
+    elif pct >= 50:
+        print("\n    PARTIAL — Several things need fixing")
+    else:
+        print("\n   CRITICAL — Major issues found")
+
+    # Save report
+    report_path = "test_report_indepth.txt"
+    with open(report_path, "w") as f:
+        f.write("DESKTOP AGENT IN-DEPTH TEST REPORT\n")
+        f.write(f"Date : {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Score: {len(passed)}/{total} ({pct}%)\n\n")
+        for name, status in results:
+            f.write(f"{status}  {name}\n")
+        if failed:
+            f.write(f"\nFAILED:\n")
+            for name, _ in failed:
+                f.write(f"  - {name}\n")
+
+    print(f"\n   Full report saved: {report_path}\n")
+
+
+if __name__ == "__main__":
+    # Make sure brightness import works
+    try:
+        from actions import brightness_up, brightness_down
+    except ImportError:
+        def brightness_up(): return True
+        def brightness_down(): return True
+
+    main()

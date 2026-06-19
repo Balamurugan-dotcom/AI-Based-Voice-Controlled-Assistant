@@ -1,0 +1,239 @@
+import requests
+import json
+
+# -------------------------------
+# CONFIG
+# -------------------------------
+OPENROUTER_API_KEY ="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" 
+MODEL = "openai/gpt-4o-mini"
+
+# -------------------------------
+# BUILD PROMPT (PLAN MODE 🔥)
+# -------------------------------
+
+def build_prompt(goal, ocr_data=None, memory=None):
+    screen_text = [item["text"] for item in ocr_data] if ocr_data else []
+
+    return f"""
+You are an AI desktop automation agent.
+
+USER GOAL:
+{goal}
+
+VISIBLE UI TEXT:
+{screen_text}
+
+MEMORY:
+{memory if memory else "None"}
+
+TASK:
+Break the goal into a sequence of actions. Return ONLY a JSON list, no explanation.
+
+AVAILABLE ACTIONS:
+- open_app       → target = app name
+- close_app      → target = app name
+- click          → target = text to click on screen
+- type           → text = what to type
+- press_key      → key = key name (enter, tab, escape, etc)
+- scroll         → target = "up" or "down"
+- search         → query = search query (navigates address bar first)
+- minimize       → minimizes current window
+- maximize       → maximizes current window
+- restore        → restores window to normal size
+- close_window   → closes current window (alt+f4)
+- close_tab      → closes current tab (ctrl+w)
+- new_tab        → opens new tab
+- go_back        → browser back
+- go_forward     → browser forward
+- refresh        → refresh page
+- screenshot     → takes screenshot
+- volume_up      → increases volume
+- volume_down    → decreases volume
+- mute           → mute/unmute
+- brightness_up  → increases brightness
+- brightness_down→ decreases brightness
+- lock           → locks screen
+- sleep          → puts computer to sleep
+- shutdown       → shuts down computer
+- restart        → restarts computer
+
+RULES:
+- Return MULTIPLE steps when needed
+- Each step = ONE action
+- Do NOT repeat actions
+- click only if target text is visible in UI TEXT
+
+OUTPUT — strict JSON list only:
+[
+  {{
+    "action": "",
+    "target": "",
+    "text": "",
+    "key": "",
+    "query": ""
+  }}
+]
+"""
+def chat_with_llm(message, memory=None):
+
+    history = ""
+
+    if memory:
+        for m in memory[-5:]:  # last 5 messages only (important)
+            history += f"{m['role']}: {m['content']}\n"
+
+    prompt = f"""
+You are a smart AI desktop assistant.
+
+Conversation so far:
+{history}
+
+Respond naturally, briefly, and like a human assistant.
+Do NOT give actions, only conversation.
+
+User: {message}
+Assistant:
+"""
+
+    response = call_llm(prompt)
+
+    if not response:
+        return "Sorry, I couldn't respond."
+
+    return response.strip()
+
+# -------------------------------
+# CALL API
+# -------------------------------
+def call_llm(prompt):
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.2
+    }
+
+    try:
+        res = requests.post(url, headers=headers, json=data, timeout=20)
+
+        if res.status_code != 200:
+            print(" API Error:", res.text)
+            return None
+
+        return res.json()["choices"][0]["message"]["content"]
+
+    except Exception as e:
+        print(" Request failed:", e)
+        return None
+
+
+# -------------------------------
+# PARSE PLAN (NEW 🔥)
+# -------------------------------
+def parse_plan(text):
+
+    if not text:
+        return []
+
+    try:
+        text = text.strip()
+
+        # remove markdown
+        if "```" in text:
+            parts = text.split("```")
+            text = parts[1] if len(parts) > 1 else text
+
+        # extract JSON array
+        start = text.find("[")
+        end = text.rfind("]") + 1
+
+        if start == -1 or end == -1:
+            return []
+
+        json_text = text[start:end]
+
+        return json.loads(json_text)
+
+    except Exception as e:
+        print(" Parse Error:", e)
+        print("RAW:", text)
+        return []
+
+
+# -------------------------------
+# VALIDATE PLAN
+# -------------------------------
+def validate_plan(plan):
+
+    if not plan or not isinstance(plan, list):
+        return False
+
+    for step in plan:
+        if "action" not in step:
+            return False
+
+    return True
+
+
+# -------------------------------
+# MAIN: GET PLAN
+# -------------------------------
+def get_plan(goal, ocr_data=None, memory=None):
+
+    prompt = build_prompt(goal, ocr_data, memory)
+
+    response = call_llm(prompt)
+
+    plan = parse_plan(response)
+
+    if not validate_plan(plan):
+        return []
+
+    return plan
+
+
+# -------------------------------
+# RETRY SYSTEM
+# -------------------------------
+def get_plan_with_retry(goal, ocr_data=None, memory=None, retries=2):
+
+    for i in range(retries):
+
+        plan = get_plan(goal, ocr_data, memory)
+
+        if plan:
+            return plan
+
+        print(f"🔁 Retry {i+1}")
+
+    return []
+
+
+# -------------------------------
+# TEST
+# -------------------------------
+if __name__ == "__main__":
+
+    ocr_data = [
+        {"text": "Chrome"},
+        {"text": "Search"},
+        {"text": "YouTube"}
+    ]
+
+    goal = "Open Chrome and search YouTube"
+
+    print("🧠 Testing Brain...\n")
+
+    plan = get_plan(goal, ocr_data)
+
+    print("📋 PLAN:")
+    print(plan)
+
+

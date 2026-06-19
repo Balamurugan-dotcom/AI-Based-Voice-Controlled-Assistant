@@ -1,0 +1,147 @@
+DESKTOP AGENT IN-DEPTH TEST REPORT
+Date : 2026-04-06 22:19:38
+Score: 143/143 (100%)
+
+ PASS  Open browser
+ PASS  Navigate to Google
+ PASS  Search on Google
+ PASS  Scroll down results
+ PASS  Scroll down more
+ PASS  Scroll back up
+ PASS  Zoom in
+ PASS  Zoom out
+ PASS  Zoom reset
+ PASS  Go back
+ PASS  Go forward
+ PASS  Refresh page
+ PASS  Find in page
+ PASS  Close find bar
+ PASS  Open new tab
+ PASS  Close new tab
+ PASS  Open incognito window
+ PASS  Close incognito
+ PASS  Close browser
+ PASS  Open browser
+ PASS  Navigate to YouTube
+ PASS  Focus search bar (/)
+ PASS  Type search query
+ PASS  Submit search
+ PASS  Scroll to first video
+ PASS  Tab to first result
+ PASS  Tab to first result
+ PASS  Open first video
+ PASS  Pause/Play (k key)
+ PASS  Play again
+ PASS  Mute video (m key)
+ PASS  Unmute video
+ PASS  Skip forward 5s (l key)
+ PASS  Skip back 5s (j key)
+ PASS  Fullscreen (f key)
+ PASS  Exit fullscreen
+ PASS  Increase volume (up arrow)
+ PASS  Decrease volume (down arrow)
+ PASS  Scroll down page
+ PASS  Scroll up page
+ PASS  Go back to results
+ PASS  Close browser
+ PASS  Open Notepad
+ PASS  Type heading
+ PASS  Press Enter
+ PASS  Type normal text
+ PASS  Press Enter
+ PASS  Type email address
+ PASS  Press Enter
+ PASS  Type numbers
+ PASS  Press Enter
+ PASS  Type special chars
+ PASS  Press Enter
+ PASS  Type URL
+ PASS  Select all text
+ PASS  Copy text
+ PASS  Press End
+ PASS  Press Enter
+ PASS  Paste text
+ PASS  Undo paste
+ PASS  Save file (Ctrl+S)
+ PASS  Type filename
+ PASS  Confirm save
+ PASS  Close Notepad
+ PASS  Open Calculator
+ PASS  Calculate 123 + 456
+ PASS  Screenshot result
+ PASS  Clear (Escape)
+ PASS  Calculate 999 - 111
+ PASS  Screenshot result
+ PASS  Clear (Escape)
+ PASS  Calculate 25 × 4
+ PASS  Screenshot result
+ PASS  Clear (Escape)
+ PASS  Calculate 144 ÷ 12
+ PASS  Screenshot result
+ PASS  Clear (Escape)
+ PASS  Close Calculator
+ PASS  Open File Explorer
+ PASS  Navigate to Documents
+ PASS  Navigate to Downloads
+ PASS  Navigate to Desktop
+ PASS  Go back
+ PASS  Go forward
+ PASS  Scroll down
+ PASS  Scroll up
+ PASS  Search in explorer
+ PASS  Type search term
+ PASS  Press Escape
+ PASS  Select all items
+ PASS  Press Escape
+ PASS  Close File Explorer
+ PASS  Open Notepad (window 1)
+ PASS  Type in window 1
+ PASS  Open Calculator (window 2)
+ PASS  Maximize window
+ PASS  Minimize window
+ PASS  Restore window
+ PASS  Snap left
+ PASS  Snap right
+ PASS  Switch window (Alt+Tab)
+ PASS  Show desktop (Win+D)
+ PASS  Restore desktop (Win+D)
+ PASS  Task view (Win+Tab)
+ PASS  Close task view
+ PASS  Close Calculator
+ PASS  Close Notepad
+ PASS  Don't save
+ PASS  Volume up
+ PASS  Volume up
+ PASS  Volume up
+ PASS  Volume down
+ PASS  Volume down
+ PASS  Mute
+ PASS  Unmute
+ PASS  Brightness up
+ PASS  Brightness up
+ PASS  Brightness down
+ PASS  Brightness down
+ PASS  Screenshot
+ PASS  Snip tool
+ PASS  Close snip
+ PASS  OCR detects text
+ PASS  OCR finds typed text
+ PASS  OCR under 10s
+ PASS  LLM connection
+ PASS  AI generates plan
+ PASS  Plan has correct actions
+ PASS  Open browser
+ PASS  Go to Google
+ PASS  Search something
+ PASS  Scroll to read
+ PASS  Screenshot results
+ PASS  Open new tab
+ PASS  Go to Wikipedia
+ PASS  Close tab
+ PASS  Close browser
+ PASS  Open Notepad
+ PASS  Type summary
+ PASS  Save file
+ PASS  Type filename
+ PASS  Confirm save
+ PASS  Close Notepad

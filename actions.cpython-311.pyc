@@ -1,0 +1,132 @@
+import sounddevice as sd
+import numpy as np
+import scipy.io.wavfile as wav
+import requests
+import tempfile
+import os
+import queue
+
+GROQ_API_KEY = "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"
+
+# audio queue
+audio_queue = queue.Queue()
+
+
+# -------------------------------
+# 🎤 AUDIO CALLBACK (REAL-TIME)
+# -------------------------------
+def audio_callback(indata, frames, time, status):
+    audio_queue.put(indata.copy())
+
+
+# -------------------------------
+# 🧠 SPEECH DETECTION
+# -------------------------------
+def detect_speech(threshold=500):
+    """Wait until speech starts"""
+    while True:
+        data = audio_queue.get()
+        volume = np.abs(data).mean()
+
+        if volume > threshold:
+            return [data]
+
+
+# -------------------------------
+# 🎤 RECORD SPEECH CHUNK
+# -------------------------------
+def record_speech(fs=16000, silence_threshold=500, silence_limit=50):
+
+    print("🎤 Waiting for speech...")
+
+    frames = detect_speech()
+
+    silence_count = 0
+
+    while True:
+        data = audio_queue.get()
+        frames.append(data)
+
+        volume = np.abs(data).mean()
+
+        if volume < silence_threshold:
+            silence_count += 1
+        else:
+            silence_count = 0
+
+        # stop after silence
+        if silence_count > silence_limit:
+            break
+
+    audio = np.concatenate(frames, axis=0)
+
+    return fs, audio
+
+
+# -------------------------------
+# 🧠 GROQ WHISPER
+# -------------------------------
+def transcribe_audio(fs, audio):
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        wav.write(f.name, fs, audio)
+        temp_path = f.name
+
+    url = "https://api.groq.com/openai/v1/audio/transcriptions"
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}"
+    }
+
+    try:
+        with open(temp_path, "rb") as audio_file:
+
+            files = {
+                "file": (os.path.basename(temp_path), audio_file, "audio/wav"),
+                "model": (None, "whisper-large-v3-turbo")
+            }
+
+            response = requests.post(url, headers=headers, files=files)
+
+        os.remove(temp_path)
+
+        if response.status_code != 200:
+            print(" API Error:", response.text)
+            return None
+
+        return response.json().get("text", "").lower()
+
+    except Exception as e:
+        print(" Voice error:", e)
+        return None
+
+
+# -------------------------------
+# 🎤 START LIVE LISTENING
+# -------------------------------
+def start_listening():
+
+    fs = 16000
+
+    stream = sd.InputStream(
+        samplerate=fs,
+        channels=1,
+        dtype='int16',
+        callback=audio_callback
+    )
+
+    stream.start()
+
+    print("🎤 LIVE voice system ready...")
+
+    while True:
+
+        fs, audio = record_speech()
+
+        print("🧠 Processing...")
+
+        text = transcribe_audio(fs, audio)
+
+        if text:
+            print(f"🗣️ You said: {text}")
+            yield text
